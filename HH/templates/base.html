@@ -32,9 +32,30 @@
                 </button>
                 <div class="collapse navbar-collapse" id="navbarSupportedContent">
                     <ul class="navbar-nav mx-auto">
-                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="{% url 'hh:index' %}">Главная</a></li>
-                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="{% url 'hh:form' %}">Поиск</a></li>
-                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="{% url 'hh:area_list' %}">Регионы</a></li>
+                        <li class="nav-item px-lg-4">
+                            <a class="nav-link text-uppercase" href="{% url 'hh:index' %}">Главная</a>
+                        </li>
+                        <li class="nav-item px-lg-4">
+                            <a class="nav-link text-uppercase" href="{% url 'hh:form' %}">Поиск</a>
+                        </li>
+                        <li class="nav-item px-lg-4">
+                            <a class="nav-link text-uppercase" href="{% url 'hh:area_list' %}">Регионы</a>
+                        </li>
+                        {% if user.is_authenticated %}
+                            <li class="nav-item px-lg-4">
+                                <small class="barge bg-light">
+                                    Привет, {{ user.username }}
+                                </small>
+                                <a class="nav-link text-uppercase" href="{% url 'users:logout' %}">Выход</a>
+                            </li>
+                        {% else %}
+                            <li class="nav-item px-lg-4">
+                                <a class="nav-link text-uppercase" href="{% url 'users:regist' %}">Регистрация</a>
+                            </li>
+                            <li class="nav-item px-lg-4">
+                                <a class="nav-link text-uppercase" href="{% url 'users:login' %}">Вход</a>
+                            </li>
+                        {% endif %}
                     </ul>
                 </div>
             </div>

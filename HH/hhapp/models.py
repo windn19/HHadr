@@ -24,7 +24,10 @@ class Employer(Model):
 
 
 class Schedule(Model):
-    name = CharField(max_length=10)
+    name = CharField(max_length=20)
+
+    def __str__(self):
+        return self.name
 
 
 class Word(Model):

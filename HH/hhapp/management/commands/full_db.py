@@ -13,17 +13,35 @@ from dotenv import load_dotenv
 from hhapp.models import Word, Wordskill, Skill, Vacancy, Schedule, Employer, Area, Type
 
 load_dotenv()
+alias = {'на дому': {'sup': 2,
+                     'hh': 'remote'},
+         'на территории работодателя': {'sup': 0,
+                                        'hh': 'fullDay'},
+         'разъездного характера': {'sup': 0,
+                                   'hh': '4'},
+         'полный день': {'sup': 0,
+                         'hh': 'fullDay'},
+         'сменный график': {'sup': 0,
+                            'hh': 'shift'},
+         'гибкий график': {'sup': 0,
+                           'hh': 'flexible'},
+         'удаленная работа': {'sup': 2,
+                              'hh': 'remote'},
+         'вахтовый метод': {'sup': 0,
+                            'hh': 'flyInFlyOut'}}
 
 
 class Command(BaseCommand):
-    def __init__(self, vacancy, pages, where):
+    def __init__(self, vacancy, pages, where, areas, schedules):
         super().__init__()
         self.vac = vacancy
         self.pages = pages
         self.where = where
+        self.areas = areas
+        self.schedules = schedules
 
     def handle(self, *args, **options):
-        res = start(self.vac, pages=self.pages, where=self.where)
+        res = start(self.vac, pages=self.pages, where=self.where, areas=self.areas, schedules=self.schedules)
         print(res)
         add_words(res)
         add_skills(res)
@@ -43,89 +61,105 @@ def skills1(pp: str, skil: list, skillis: list):
     return skillis
 
 
-def parce_sup(vacancy, pages='3', where='all'):
+def parce_sup(vacancy, areas, schedules, pages='3', where='all'):
     url = 'https://api.superjob.ru/2.0/vacancies/'
     key = os.getenv('key_super')
-    head = {
-        'X-Api-App-Id': key,
-        'Authorization': 'Bearer r.000000010000001.example.access_token',
-        'Content-Type': 'application/x-www-form-urlencoded'}
-
-    p = {'keyword': vacancy,
-         'period': 3}
-
-    res = get(url, headers=head, params=p).json()
-    count = len(res['objects'])
-    pages1 = res['total'] // count
-    print(pages)
-    ski = []
     sal = {'from': [], 'to': [], 'cur': []}
-    result = {
-        'keywords': 'python',
-        'count': count}
-    for i in range(1, pages1):
-        if i > int(pages):
-            break
-        p = {'keyword': 'python',
-             'period': 3,
-             'page': i}
-        res = get(url, headers=head, params=p).json()
-        result['count'] += len(res['objects'])
-        for vac in res['objects']:
-            # pprint(vac)
-            url1 = vac['link']
-            area_id = vac['town']['id']
-            area_name = vac['town']['title']
-            employer_id = vac['client'].get('id', 0)
-            employer_name = vac['client'].get('title', '')
-            employer_link = vac['client'].get('client_logo', None)
-            title = vac['profession']
-            published = datetime.fromtimestamp(vac['date_published'])
-            schedule = vac['place_of_work']
-            type = 'Открытая'
-            snippet = vac['vacancyRichText']
-            are = Area.objects.filter(name=area_name).first()
-            if are:
-                are.ind_super = area_id
-                are.save()
-            else:
-                are = Area.objects.create(name=area_name, ind_super=area_id)
-            em = Employer.objects.get_or_create(name=employer_name, ind=employer_id, link=employer_link)[0]
-            sc = Schedule.objects.get_or_create(name=schedule)[0]
-            t = Type.objects.get_or_create(name=type)[0]
-            w = Word.objects.filter(word=vacancy).first()
-            if not w:
-                w = Word.objects.create(word=vacancy, count=1, up=1, down=1)
-            ski = skills1(snippet, [], ski)
-            if vac['payment_from'] or vac['payment_to']:
-                salary_from = vac['payment_from'] if vac['payment_from'] else vac['payment_to']
-                salary_to = vac['payment_to'] if vac['payment_to'] else vac['payment_from']
-                sal['from'].append(salary_from)
-                sal['to'].append(salary_to)
-            else:
-                salary_from, salary_to = 0, 0
-            Vacancy.objects.create(published=published, name=title, url=url1, word_id=w, area=are, schedule=sc,
-                                   snippet=snippet, salaryFrom=salary_from, salaryTo=salary_to, employer=em,
-                                   type=t)
-        sk2 = Counter(ski)
-        up = sum(sal['from']) / len(sal['from'])
-        down = sum(sal['to']) / len(sal['to'])
-        result.update({'down': round(up, 2),
-                       'up': round(down, 2)})
-        add = []
-        for name, count in sk2.most_common(5):
-            add.append({'name': name,
-                        'count': count,
-                        'percent': round((count / result['count']) * 100, 2)})
-        result['requirements'] = add
-        return result
+    for schedule in schedules:
+        for area in areas:
+            print(11)
+            head = {
+                'X-Api-App-Id': key,
+                'Authorization': 'Bearer r.000000010000001.example.access_token',
+                'Content-Type': 'application/x-www-form-urlencoded'}
+
+            p = {'keyword': vacancy,
+                 'town': area.name,
+                 'place_of_work': alias[schedule.name]['sup'],
+                 'period': 3}
+
+            res = get(url, headers=head, params=p).json()
+            # pprint(res)
+            count = len(res['objects'])
+            pages1 = res['total'] // count
+            print(pages, pages1)
+            ski = []
+            result = {
+                'keywords': 'python',
+                'count': count}
+            for i in range(0, pages1):
+                if i > int(pages):
+                    print('exit')
+                    break
+                print(area.name, alias[schedule.name]['sup'])
+                p = {'keyword': 'python',
+                     'town': area.name,
+                     'place_of_work': alias[schedule.name]['sup'],
+                     'period': 3,
+                     'page': i}
+                res = get(url, headers=head, params=p).json()
+                result['count'] += len(res['objects'])
+                for vac in res['objects']:
+                    pprint(vac)
+                    url1 = vac['link']
+                    area_id = vac['town']['id']
+                    area_name = vac['town']['title']
+                    employer_id = vac['client'].get('id', 0)
+                    employer_name = vac['client'].get('title', '')
+                    employer_link = vac['client'].get('client_logo', None)
+                    title = vac['profession']
+                    published = datetime.fromtimestamp(vac['date_published'])
+                    schedule = vac['place_of_work']['title'].lower()
+                    type = 'Открытая'
+                    snippet = vac['vacancyRichText']
+                    are = Area.objects.filter(name=area_name).first()
+                    if are:
+                        are.ind_super = area_id
+                        are.save()
+                    else:
+                        are = Area.objects.create(name=area_name, ind_super=area_id)
+                    em = Employer.objects.get_or_create(name=employer_name, ind=employer_id, link=employer_link)[0]
+                    sc = Schedule.objects.get_or_create(name=schedule)[0]
+                    t = Type.objects.get_or_create(name=type)[0]
+                    w = Word.objects.filter(word=vacancy).first()
+                    if not w:
+                        w = Word.objects.create(word=vacancy, count=1, up=1, down=1)
+                    ski = skills1(snippet, [], ski)
+                    print(vac['payment_from'], vac['payment_to'], sep='\n')
+                    if vac['payment_from'] or vac['payment_to']:
+                        salary_from = vac['payment_from'] if vac['payment_from'] else vac['payment_to']
+                        salary_to = vac['payment_to'] if vac['payment_to'] else vac['payment_from']
+                        sal['from'].append(salary_from)
+                        sal['to'].append(salary_to)
+                    else:
+                        salary_from, salary_to = 0, 0
+                    Vacancy.objects.create(published=published, name=title, url=url1, word_id=w, area=are, schedule=sc,
+                                           snippet=snippet, salaryFrom=salary_from, salaryTo=salary_to, employer=em,
+                                           type=t)
+    print(sal)
+    sk2 = Counter(ski)
+    up = sum(sal['from']) / len(sal['from'])
+    down = sum(sal['to']) / len(sal['to'])
+    result.update({'down': round(up, 2),
+                   'up': round(down, 2)})
+    add = []
+    for name, count in sk2.most_common(5):
+        add.append({'name': name,
+                    'count': count,
+                    'percent': round((count / result['count']) * 100, 2)})
+    result['requirements'] = add
+    return result
 
 
-def parce(url, vacancy, pages='3', where='all'):
+def parce(url, vacancy, areas, schedules, pages='3', where='all'):
     # url = 'https://api.hh.ru/vacancies'
+    areas = [area.ind_hh if url.startswith('https://api.h') else area.ind_zarp for area in areas]
+    schedules = [alias[schedule.name]['hh'] for schedule in schedules]
     rate = ExchangeRates()
     vacancy = vacancy if where == 'all' else f'NAME: {vacancy}' if where == 'name' else f'COMPANY_NAME: {vacancy}'
-    p = {'text': vacancy}
+    p = {'text': vacancy,
+         'area': areas,
+         'schedule': schedules}
     r = get(url=url, params=p).json()
     count_pages = r['pages']
     all_count = len(r['items'])
@@ -140,6 +174,8 @@ def parce(url, vacancy, pages='3', where='all'):
         else:
             print(f"Обрабатывается страница {page}")
         p = {'text': vacancy,
+             'area': areas,
+             'schedule': schedules,
              'page': page}
         ress = get(url=url, params=p).json()
         all_count = len(ress['items'])
@@ -155,7 +191,7 @@ def parce(url, vacancy, pages='3', where='all'):
             employer_link = res['employer']['logo_urls']['original'] if res['employer'].get('logo_urls', 0) else None
             title = res['name']
             published = res['published_at']
-            schedule = res['schedule']['name']
+            schedule = res['schedule']['name'].lower()
             type = res['type']['name']
             are = Area.objects.filter(name=area_name).first()
             if url.startswith('https://api.hh'):
@@ -216,10 +252,12 @@ def parce(url, vacancy, pages='3', where='all'):
     return result
 
 
-def start(vacancy, pages='3', where='all'):
-    sk1 = parce_sup(vacancy, pages=pages, where=where)
-    sk2 = parce(url='https://api.hh.ru/vacancies', vacancy=vacancy, pages=pages, where=where)
-    sk3 = parce(url='https://api.zarplata.ru/vacancies', vacancy=vacancy, pages=pages, where=where)
+def start(vacancy, areas, schedules, pages='3', where='all'):
+    sk1 = parce_sup(vacancy, pages=pages, where=where, areas=areas, schedules=schedules)
+    sk2 = parce(url='https://api.hh.ru/vacancies', vacancy=vacancy, pages=pages,
+                where=where, areas=areas, schedules=schedules)
+    sk3 = parce(url='https://api.zarplata.ru/vacancies', vacancy=vacancy, pages=pages,
+                where=where, areas=areas, schedules=schedules)
     result = {'keywords': vacancy}
     res = (it for it in (sk1, sk2, sk3) if it)
     sk = {}
