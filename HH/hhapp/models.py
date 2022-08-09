@@ -11,7 +11,13 @@ class Area(Model):
     
     def __str__(self):
         return self.name
-    
+
+    def __eq__(self, other):
+        if isinstance(self, type(other)) and self.name == other.name and self.ind_hh == other.ind_hh\
+                and self.ind_zarp == other.ind_zarp and self.ind_super == other.ind_super:
+            return True
+        return False
+
     class Meta:
         verbose_name = 'Название региона'
         verbose_name_plural = 'Регионы'
