@@ -7,7 +7,7 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, D
 from django.views.generic.base import ContextMixin
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q
+from django.core.paginator import Paginator
 
 from .forms import ReqForm, UserReqForm, AuthUserReqForm
 from .models import Vacancy, Word, Wordskill, Area, Schedule
@@ -18,7 +18,8 @@ load_dotenv()
 
 
 def start(request):
-    return render(request, 'hhapp/index.html')
+    title = 'Главная страница'
+    return render(request, 'hhapp/index.html', {'title': title})
 
 
 def form(request):
@@ -28,11 +29,14 @@ def form(request):
         form1 = AuthUserReqForm(initial={'vacancy': request.user.text,
                                          'areas': request.user.areas.all(),
                                          'schedules': request.user.schedules.all()})
-    return render(request, 'hhapp/form.html', context={'form': form1})
+        title = 'страница форма'
+    return render(request, 'hhapp/form.html', context={'form': form1, 'title': title})
 
 
 def result(request):
+    print('gist')
     if request.method == 'POST':
+        print('post')
         form = UserReqForm(request.POST)
         if form.is_valid():
             vac = form.cleaned_data['vacancy']
@@ -45,13 +49,38 @@ def result(request):
             com = Command(vac, pages, where, areas, schedules)
             com.handle()
             v = Word.objects.get(word=vac)
-            s = Wordskill.objects.filter(id_word_id=v.id).all()
-            vac = Vacancy.objects.filter(Q(word_id=v) & Q(area__in=areas) & Q(schedule__in=schedules)).order_by('published').all()
+            s = Wordskill.objects.filter(id_word_id=v.id).order_by('-percent').all()
+            vac = Vacancy.active_objects.filter(word_id=v,
+                                                area__in=areas,
+                                                schedule__in=schedules).order_by('published').all()
             print(vac, v, s, sep='\n')
-            return render(request, 'hhapp/about.html', context={'vac': vac, 'word': v, 'skills': s})
+            paginator = Paginator(vac, 10)
+            page_number = request.GET.get('page')
+            page_obj = paginator.get_page(page_number)
+            return render(request, 'hhapp/about.html', context={'word': v,
+                                                                'skills': s,
+                                                                'page_obj': page_obj})
         else:
-            form1 = UserReqForm()
-            return render(request, 'hhapp/form.html', context={'form': form1})
+            page_number = request.GET.get('page')
+            print('get', page_number)
+            if page_number:
+                vac = form.cleaned_data['vacancy']
+                where = form.cleaned_data['where']
+                pages = form.cleaned_data['pages']
+                # print(request.POST.getlist('areas'), request.POST.getlist('schedules'))
+                areas = [Area.objects.filter(id=it).first() for it in request.POST.getlist('areas')]
+                schedules = [Schedule.objects.filter(id=it).first() for it in request.POST.getlist('schedules')]
+                v = Word.objects.get(word=vac)
+                s = Wordskill.objects.filter(id_word_id=v.id).all()
+                vac = Vacancy.objects.filter(word_id=v, area__in=areas, schedule__in=schedules).order_by('published').all()
+                paginator = Paginator(vac, 10)
+                page_obj = paginator.get_page(page_number)
+                return render(request, 'hhapp/about.html', context={'word': v,
+                                                                    'skills': s,
+                                                                    'page_obj': page_obj})
+            else:
+                form1 = UserReqForm()
+                return render(request, 'hhapp/form.html', context={'form': form1})
 
 
 class WSList(ListView):
@@ -62,6 +91,7 @@ class WSList(ListView):
 class AreaList(ListView):
     model = Area
     template_name = 'hhapp/area_list.html'
+    paginate_by = 3
 
     def get_queryset(self):
         return Area.objects.order_by('name').all()

@@ -27,6 +27,10 @@ alias = {'на дому': {'sup': 2,
                            'hh': 'flexible'},
          'удаленная работа': {'sup': 2,
                               'hh': 'remote'},
+         'удалённая работа (на дому)': {'sup': 2,
+                                        'hh': 'remote'},
+         'не имеет значения': {'sup': 0,
+                               'hh': 'fullDay'},
          'вахтовый метод': {'sup': 0,
                             'hh': 'flyInFlyOut'}}
 
@@ -81,62 +85,67 @@ def parce_sup(vacancy, areas, schedules, pages='3', where='all'):
             res = get(url, headers=head, params=p).json()
             # pprint(res)
             count = len(res['objects'])
-            pages1 = res['total'] // count
-            print(pages, pages1)
             ski = []
-            result = {
-                'keywords': 'python',
-                'count': count}
-            for i in range(0, pages1):
-                if i > int(pages):
-                    print('exit')
-                    break
-                print(area.name, alias[schedule.name]['sup'])
-                p = {'keyword': 'python',
-                     'town': area.name,
-                     'place_of_work': alias[schedule.name]['sup'],
-                     'period': 3,
-                     'page': i}
-                res = get(url, headers=head, params=p).json()
-                result['count'] += len(res['objects'])
-                for vac in res['objects']:
-                    pprint(vac)
-                    url1 = vac['link']
-                    area_id = vac['town']['id']
-                    area_name = vac['town']['title']
-                    employer_id = vac['client'].get('id', 0)
-                    employer_name = vac['client'].get('title', '')
-                    employer_link = vac['client'].get('client_logo', None)
-                    title = vac['profession']
-                    published = datetime.fromtimestamp(vac['date_published'])
-                    schedule = vac['place_of_work']['title'].lower()
-                    type = 'Открытая'
-                    snippet = vac['vacancyRichText']
-                    are = Area.objects.filter(name=area_name).first()
-                    if are:
-                        are.ind_super = area_id
-                        are.save()
-                    else:
-                        are = Area.objects.create(name=area_name, ind_super=area_id)
-                    em = Employer.objects.get_or_create(name=employer_name, ind=employer_id, link=employer_link)[0]
-                    sc = Schedule.objects.get_or_create(name=schedule)[0]
-                    t = Type.objects.get_or_create(name=type)[0]
-                    w = Word.objects.filter(word=vacancy).first()
-                    if not w:
-                        w = Word.objects.create(word=vacancy, count=1, up=1, down=1)
-                    ski = skills1(snippet, [], ski)
-                    print(vac['payment_from'], vac['payment_to'], sep='\n')
-                    if vac['payment_from'] or vac['payment_to']:
-                        salary_from = vac['payment_from'] if vac['payment_from'] else vac['payment_to']
-                        salary_to = vac['payment_to'] if vac['payment_to'] else vac['payment_from']
-                        sal['from'].append(salary_from)
-                        sal['to'].append(salary_to)
-                    else:
-                        salary_from, salary_to = 0, 0
-                    Vacancy.objects.create(published=published, name=title, url=url1, word_id=w, area=are, schedule=sc,
-                                           snippet=snippet, salaryFrom=salary_from, salaryTo=salary_to, employer=em,
-                                           type=t)
-    print(sal)
+            if count:
+                pages1 = res['total'] // count
+                print(pages, pages1)
+                result = {
+                    'keywords': 'python',
+                    'count': count}
+                for i in range(0, pages1):
+                    if i > int(pages):
+                        print('exit')
+                        break
+                    print(area.name, alias[schedule.name]['sup'])
+                    p = {'keyword': 'python',
+                         'town': area.name,
+                         'place_of_work': alias[schedule.name]['sup'],
+                         'period': 3,
+                         'page': i}
+                    res = get(url, headers=head, params=p).json()
+                    result['count'] += len(res['objects'])
+                    for vac in res['objects']:
+                        pprint(vac)
+                        url1 = vac['link']
+                        area_id = vac['town']['id']
+                        area_name = vac['town']['title']
+                        employer_id = vac['client'].get('id', 0)
+                        employer_name = vac['client'].get('title', '')
+                        employer_link = vac['client'].get('client_logo', None)
+                        title = vac['profession']
+                        published = datetime.fromtimestamp(vac['date_published'])
+                        schedule = vac['place_of_work']['title'].lower()
+                        type = 'Открытая'
+                        snippet = vac['vacancyRichText']
+                        are = Area.objects.filter(name=area_name).first()
+                        if are:
+                            are.ind_super = area_id
+                            are.save()
+                        else:
+                            are = Area.objects.create(name=area_name, ind_super=area_id)
+                        em = Employer.objects.get_or_create(name=employer_name, ind=employer_id, link=employer_link)[0]
+                        sc = Schedule.objects.get_or_create(name=schedule)[0]
+                        t = Type.objects.get_or_create(name=type)[0]
+                        w = Word.objects.filter(word=vacancy).first()
+                        if not w:
+                            w = Word.objects.create(word=vacancy, count=1, up=1, down=1)
+                        ski = skills1(snippet, [], ski)
+                        print(vac['payment_from'], vac['payment_to'], sep='\n')
+                        if vac['payment_from'] or vac['payment_to']:
+                            salary_from = vac['payment_from'] if vac['payment_from'] else vac['payment_to']
+                            salary_to = vac['payment_to'] if vac['payment_to'] else vac['payment_from']
+                            sal['from'].append(salary_from)
+                            sal['to'].append(salary_to)
+                        else:
+                            salary_from, salary_to = 0, 0
+                        Vacancy.objects.create(published=published, name=title, url=url1, word_id=w, area=are, schedule=sc,
+                                               snippet=snippet, salaryFrom=salary_from, salaryTo=salary_to, employer=em,
+                                               type=t)
+            else:
+                print('отмена региона')
+    print(sal, ski)
+    if not ski:
+        return None
     sk2 = Counter(ski)
     up = sum(sal['from']) / len(sal['from'])
     down = sum(sal['to']) / len(sal['to'])
@@ -239,10 +248,13 @@ def parce(url, vacancy, areas, schedules, pages='3', where='all'):
                                    snippet=snippet, salaryFrom=salary_from, salaryTo=salary_to, employer=em,
                                    type=t)
     sk2 = Counter(skillis)
-    up = sum(sal['from']) / len(sal['from'])
-    down = sum(sal['to']) / len(sal['to'])
-    result.update({'down': round(up, 2),
-                   'up': round(down, 2)})
+    try:
+        up = sum(sal['from']) / len(sal['from'])
+        down = sum(sal['to']) / len(sal['to'])
+        result.update({'down': round(up, 2),
+                       'up': round(down, 2)})
+    except ZeroDivisionError:
+        return None
     add = []
     for name, count in sk2.most_common(5):
         add.append({'name': name,
@@ -282,6 +294,9 @@ def start(vacancy, areas, schedules, pages='3', where='all'):
 
 
 def add_words(res):
+    if not res['requirements']:
+        print('Not edit')
+        return
     try:
         obj = Word.objects.get(word=res['keywords'])
         print(obj)
@@ -298,6 +313,9 @@ def add_words(res):
 
 
 def add_skills(res):
+    if not res['requirements']:
+        print('Not edit')
+        return
     for item in res['requirements']:
         try:
             r = Skill.objects.get(name=item['name'])
@@ -307,6 +325,9 @@ def add_skills(res):
 
 
 def add_ws(res):
+    if not res['requirements']:
+        print('Not edit')
+        return
     word = Word.objects.get(word=res['keywords'])
     for item in res['requirements']:
         skill = Skill.objects.get(name=item['name'])

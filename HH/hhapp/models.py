@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from django.db import models
 from django.db.models import Model, CharField, TextField, DateTimeField, ForeignKey
 from django.db.models import ManyToManyField, URLField, FloatField, IntegerField
@@ -21,6 +23,21 @@ class Area(Model):
     class Meta:
         verbose_name = 'Название региона'
         verbose_name_plural = 'Регионы'
+
+
+class ActiveManager(models.Manager):
+    def get_queryset(self):
+        all_objects = super().get_queryset()
+        d = datetime.now() - timedelta(days=1)
+        return all_objects.filter(published__gte=d)
+
+
+class IsActiveMixin(Model):
+    objects = models.Manager()
+    active_objects = ActiveManager()
+
+    class Meta:
+        abstract = True
 
 
 class Employer(Model):
@@ -54,7 +71,7 @@ class Type(Model):
     name = CharField(max_length=10, unique=True)
 
 
-class Vacancy(Model):
+class Vacancy(IsActiveMixin):
     published = DateTimeField()
     name = CharField(max_length=50)
     url = URLField()
