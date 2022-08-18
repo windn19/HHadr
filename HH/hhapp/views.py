@@ -18,7 +18,7 @@ load_dotenv()
 
 
 def start(request):
-    title = 'Главная страница'
+    title = 'главная страница'
     return render(request, 'hhapp/index.html', {'title': title})
 
 
@@ -29,7 +29,7 @@ def form(request):
         form1 = AuthUserReqForm(initial={'vacancy': request.user.text,
                                          'areas': request.user.areas.all(),
                                          'schedules': request.user.schedules.all()})
-        title = 'страница форма'
+        title = 'страница формы'
     return render(request, 'hhapp/form.html', context={'form': form1, 'title': title})
 
 
